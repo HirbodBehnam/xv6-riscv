@@ -80,3 +80,27 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// Gets the number of free pages in kernel.
+// Kinda goes hand in hand with number of times you
+// can call kalloc without running out of memory.
+uint64 free_pages(void) {
+  uint64 counter;
+  struct run *r;
+
+  counter = 0;
+  acquire(&kmem.lock);
+  // Check how much we can go into the pages
+  r = kmem.freelist;
+  while (r) {
+    counter++;
+    r = r->next;
+  }
+  release(&kmem.lock);
+  return counter;
+}
+
+// Returns the free memory space in bytes
+uint64 sys_mem_free(void) {
+  return free_pages() * PGSIZE;
+}
