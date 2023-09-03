@@ -19,10 +19,29 @@ int flags2perm(int flags)
     return perm;
 }
 
+// Checks if the read elf header is actually a shell bang.
+// If so, returns the path to interpreter in the interpreter argument and returns 1.
+// Otherwise returns 0.
+static int get_interpreter(const struct elfhdr *elf, char *interpreter) {
+  int i;
+  const char* casted = (const char*) elf;
+
+  if (casted[0] != '#' || casted[1] != '!') // no shell bang
+    return 0;
+
+  // Copy from shell bang to next line to interpreter
+  casted += 2; // advance the pointer
+  for (i = 0; casted[i] != '\n'; i++)
+    interpreter[i] = casted[i];
+  interpreter[i] = '\0';
+  return 1;
+}
+
 int
 exec(char *path, char **argv)
 {
-  char *s, *last;
+  char interpreter_buffer[sizeof(struct elfhdr)];
+  char *s, *last, *interpreter_argv[MAXARG];
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG], stackbase;
   struct elfhdr elf;
@@ -42,6 +61,18 @@ exec(char *path, char **argv)
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
+
+  // Check the interpreter
+  if (get_interpreter(&elf, interpreter_buffer)) {
+    iunlockput(ip);
+    end_op();
+    // Create the argv. Just add the path of interpreter at the first
+    interpreter_argv[0] = interpreter_buffer;
+    for(argc = 0; argv[argc]; argc++)
+      interpreter_argv[argc + 1] = argv[argc];
+    interpreter_argv[argc + 1] = 0;
+    return exec(interpreter_buffer, interpreter_argv);
+  }
 
   if(elf.magic != ELF_MAGIC)
     goto bad;
