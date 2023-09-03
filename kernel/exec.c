@@ -31,7 +31,7 @@ static int get_interpreter(const struct elfhdr *elf, char *interpreter) {
 
   // Copy from shell bang to next line to interpreter
   casted += 2; // advance the pointer
-  for (i = 0; casted[i] != '\n'; i++)
+  for (i = 0; casted[i] != '\n' && casted[i] != '\0'; i++)
     interpreter[i] = casted[i];
   interpreter[i] = '\0';
   return 1;
@@ -42,9 +42,9 @@ exec(char *path, char **argv)
 {
   char interpreter_buffer[sizeof(struct elfhdr)];
   char *s, *last, *interpreter_argv[MAXARG];
-  int i, off;
+  int i, off, read_elf_size;
   uint64 argc, sz = 0, sp, ustack[MAXARG], stackbase;
-  struct elfhdr elf;
+  struct elfhdr elf = {0};
   struct inode *ip;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
@@ -59,8 +59,7 @@ exec(char *path, char **argv)
   ilock(ip);
 
   // Check ELF header
-  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
-    goto bad;
+  read_elf_size = readi(ip, 0, (uint64)&elf, 0, sizeof(elf));
 
   // Check the interpreter
   if (get_interpreter(&elf, interpreter_buffer)) {
@@ -73,6 +72,9 @@ exec(char *path, char **argv)
     interpreter_argv[argc + 1] = 0;
     return exec(interpreter_buffer, interpreter_argv);
   }
+
+  if(read_elf_size != sizeof(elf))
+    goto bad;
 
   if(elf.magic != ELF_MAGIC)
     goto bad;
