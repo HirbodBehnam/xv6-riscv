@@ -102,6 +102,33 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   return &pagetable[PX(0, va)];
 }
 
+// Walks the page table just like walk function
+// but does it with huge pages. This means that
+// there is only one page table which we need to dereference.
+//
+// A 64-bit virtual address is split into four fields in huge pages:
+//   39..63 -- must be zero.
+//   30..38 -- 9 bits of level-2 index.
+//   21..29 -- 9 bits of level-1 index.
+//    0..20 -- 21 bits of byte offset within the page.
+pte_t *
+walk_huge(pagetable_t pagetable, uint64 va, int alloc)
+{
+  if(va >= MAXVA)
+    panic("walk");
+
+  pte_t *level2_pte = &pagetable[PX(2, va)]; // always level 2
+  if(*level2_pte & PTE_V) { // is page table entry valid and points to another address?
+    pagetable = (pagetable_t)PTE2PA(*level2_pte);
+  } else {
+    if(!alloc || (pagetable = (pde_t*)kalloc()) == 0) // try to allocate a page
+      return 0;
+    memset(pagetable, 0, PGSIZE); // empty the page
+    *level2_pte = PA2PTE(pagetable) | PTE_V;
+  }
+  return &pagetable[PX(1, va)];
+}
+
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
@@ -128,10 +155,11 @@ walkaddr(pagetable_t pagetable, uint64 va)
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
+// might use huge pages.
 void
 kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
-  if(mappages(kpgtbl, va, sz, pa, perm) != 0)
+  if(kmappages(kpgtbl, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
 
@@ -160,6 +188,58 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       break;
     a += PGSIZE;
     pa += PGSIZE;
+  }
+  return 0;
+}
+
+// Checks if a huge page can be allocated instead of multiple
+// simple pages.
+// To check so, at first it checks if start boundery aligned.
+// Next, it checks if the size of the allocated page is less
+// than the size of requested allocation.
+// Returns 1 if applicable.
+int
+huge_pages_applicable(uint64 start, uint64 end) {
+  if (start % PGHUGESIZE != 0) // start is on boundry?
+    return 0;
+  if (end - start < PGHUGESIZE) // requested size is less than huge page size?
+    return 0;
+  return 1;
+}
+
+// Create PTEs for virtual addresses starting at va that refer to
+// physical addresses starting at pa. va and size might not
+// be page-aligned. Returns 0 on success, -1 if walk() couldn't
+// allocate a needed page-table page.
+// As the name suggests, it uses huge pages.
+int
+kmappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+{
+  uint64 a, last;
+  pte_t *pte;
+  int use_huge_pages;
+
+  if(size == 0)
+    panic("mappages: size");
+  
+  a = PGROUNDDOWN(va);
+  last = PGROUNDDOWN(va + size - 1);
+  for(;;){
+    use_huge_pages = huge_pages_applicable(a, last);
+    if (use_huge_pages) {
+      if((pte = walk_huge(pagetable, a, 1)) == 0)
+        return -1;
+    } else {
+      if((pte = walk(pagetable, a, 1)) == 0)
+        return -1;
+    }
+    if(*pte & PTE_V)
+      panic("mappages: remap");
+    *pte = PA2PTE(pa) | perm | PTE_V;
+    if(a == last)
+      break;
+    a += use_huge_pages ? PGHUGESIZE : PGSIZE;
+    pa += use_huge_pages ? PGHUGESIZE : PGSIZE;
   }
   return 0;
 }

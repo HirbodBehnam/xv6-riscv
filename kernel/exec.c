@@ -58,7 +58,6 @@ exec(char *path, char **argv)
   }
   ilock(ip);
 
-  // Check ELF header
   read_elf_size = readi(ip, 0, (uint64)&elf, 0, sizeof(elf));
 
   // Check the interpreter
@@ -73,6 +72,7 @@ exec(char *path, char **argv)
     return exec(interpreter_buffer, interpreter_argv);
   }
 
+  // Check ELF header
   if(read_elf_size != sizeof(elf))
     goto bad;
 
