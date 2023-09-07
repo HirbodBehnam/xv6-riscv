@@ -35,8 +35,10 @@ main()
     while(started == 0)
       ;
     __sync_synchronize();
-    printf("hart %d starting\n", cpuid());
     kvminithart();    // turn on paging
+    // It is important to turn on the paging before printing anything
+    // in order to use UART
+    printf("hart %d started\n", cpuid());
     trapinithart();   // install kernel trap vector
     plicinithart();   // ask PLIC for device interrupts
   }

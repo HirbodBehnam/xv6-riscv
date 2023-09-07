@@ -10,10 +10,13 @@
 #include "proc.h"
 #include "defs.h"
 
+// Logical address of UART0 registers
+long long uart0_log = UART0_PHY;
+
 // the UART control registers are memory-mapped
 // at address UART0. this macro returns the
 // address of one of the registers.
-#define Reg(reg) ((volatile unsigned char *)(UART0 + reg))
+#define Reg(reg) ((volatile unsigned char *)(uart0_log + reg))
 
 // the UART control registers.
 // some have different meanings for
