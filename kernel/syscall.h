@@ -22,3 +22,4 @@
 #define SYS_close    21
 #define SYS_add      22
 #define SYS_mem_free 23
+#define SYS_time     24

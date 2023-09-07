@@ -54,6 +54,9 @@ void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
 
+// goldfish.c
+uint64          get_current_time(void);
+
 // ramdisk.c
 void            ramdiskinit(void);
 void            ramdiskintr(void);
@@ -63,7 +66,6 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-uint64          sys_mem_free(void);
 
 // log.c
 void            initlog(int, struct superblock*);

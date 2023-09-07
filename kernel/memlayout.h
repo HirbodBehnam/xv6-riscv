@@ -20,12 +20,18 @@
 // qemu puts UART registers here in physical memory.
 #define UART0_PHY 0x10000000L
 // To randomize the logical space, we map the logical address here
+#ifndef __ASSEMBLER__ // https://stackoverflow.com/a/15077928/4213397
 extern long long uart0_log;
+#endif
 #define UART0_IRQ 10
 
 // virtio mmio interface
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
+
+// google goldfish rtc interface
+// address from https://github.com/qemu/qemu/blob/c152379422a204109f34ca2b43ecc538c7d738ae/hw/riscv/virt.c#L82
+#define GOLDFISH_RTC 0x101000
 
 // core local interruptor (CLINT), which contains the timer.
 #define CLINT 0x2000000L
