@@ -110,6 +110,11 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 
+// rng.c
+void            rng_seed(uint64 seed);
+uint64          rng_next(void);
+uint8           rng_next_byte(void);
+
 // swtch.S
 void            swtch(struct context*, struct context*);
 
