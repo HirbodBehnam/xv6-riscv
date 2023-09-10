@@ -23,6 +23,9 @@ main(void)
   dup(0);  // stdout
   dup(0);  // stderr
 
+  // Acts like /dev/zero and /dev/null
+  mknod("void", VOID_FILE, 0);
+
   for(;;){
     printf("init: starting sh\n");
     pid = fork();

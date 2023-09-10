@@ -19,10 +19,14 @@ struct {
   struct file file[NFILE];
 } ftable;
 
+static void
+file_especial_init(void);
+
 void
 fileinit(void)
 {
   initlock(&ftable.lock, "ftable");
+  file_especial_init();
 }
 
 // Allocate a file structure.
@@ -180,3 +184,27 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+
+// Fills the input with zero
+static int
+void_file_read(int user_dst, uint64 dst, int n) {
+  char zero = 0;
+  for (int i = 0; i < n; i++)
+    if (either_copyout(user_dst, dst, &zero, 1) < 0)
+      return i;
+  return n;
+}
+
+// Ignores the input
+static int
+void_file_write(int user_dst, uint64 dst, int n) {
+  return n;
+}
+
+// Initialize the special file descriptors
+static void
+file_especial_init(void) {
+  // Void file
+  devsw[VOID_FILE].read = void_file_read;
+  devsw[VOID_FILE].write = void_file_write;
+}
