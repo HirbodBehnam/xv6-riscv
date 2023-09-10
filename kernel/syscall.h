@@ -23,3 +23,4 @@
 #define SYS_add      22
 #define SYS_mem_free 23
 #define SYS_time     24
+#define SYS_rng_read 25

@@ -18,7 +18,6 @@ main()
     printf("Starting at %d\n", (int) get_current_time());
     printf("\n");
     rng_seed(get_current_time()); // random number generator seed
-    // TODO: END
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging

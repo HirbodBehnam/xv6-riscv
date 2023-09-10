@@ -38,3 +38,4 @@ entry("sleep");
 entry("uptime");
 entry("mem_free");
 entry("time");
+entry("rng_read");

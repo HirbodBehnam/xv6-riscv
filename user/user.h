@@ -24,6 +24,7 @@ int sleep(int);
 int uptime(void);
 int mem_free(void);
 int time(void);
+int rng_read(int, char*);
 
 // ulib.c
 int stat(const char*, struct stat*);

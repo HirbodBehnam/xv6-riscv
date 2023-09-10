@@ -15,6 +15,7 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "proc.h"
 
 /* This is xoroshiro128+ 1.0, our best and fastest small-state generator
    for floating-point numbers, but its state space is large enough only
@@ -101,4 +102,23 @@ rng_next_byte(void) {
   last_index += 8;
   release(&next_byte_lock);
   return result;
+}
+
+// RNG syscall
+// Returns the number of bytes written
+uint64
+sys_rng_read(void) {
+  uint64 buffer;
+  int length;
+  struct proc *p = myproc();
+
+  argint(0, &length);
+  argaddr(1, &buffer);
+  // Fill buffer
+  for (int i = 0; i < length; i++) {
+    char rand_number = rng_next_byte();
+    if (copyout(p->pagetable, buffer + i, &rand_number, 1) < 0)
+      return i;
+  }
+  return length;
 }
