@@ -68,8 +68,26 @@ usertrap(void)
 
     syscall();
   } else if (r_scause() == SCAUSE_PAGE_FAULT) {
-    printf("usertrap(): invalid memory access while accessing address %p\n", r_stval());
-    setkilled(p);
+    uint64 segfault_address = r_stval();
+    switch (uvmlazy(p->pagetable, segfault_address)) {
+      case LAZY_ALLOCATE_OK:
+        //printf("Lazily allocated for access %p\n", segfault_address);
+        break; // yay!
+      case LAZY_ALLOCATE_OOM:
+        printf("OOM in PID %d\n", p->pid);
+        // Here, we have to act immediately and free the whole goddamn page table.
+        // Because we literally have no more free pages it might cause the OS to crash.
+        uvmunmap(p->pagetable, 0, PGROUNDUP(p->sz)/PGSIZE, 1);
+        p->sz = 0; // we freed it
+        //printf("OOM cleanup done\n");
+        // Kill the process
+        setkilled(p);
+        break;
+      case LAZY_ALLOCATE_SEGFAULT:
+        printf("usertrap(): SEGFAULT on address %p\n", segfault_address);
+        setkilled(p);
+        break;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

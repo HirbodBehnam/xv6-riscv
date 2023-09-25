@@ -2058,6 +2058,13 @@ sbrkbasic(char *s)
 }
 
 void
+sbrknothing(char *s)
+{
+  sbrk(1024*1024*10);
+  exit(0);
+}
+
+void
 sbrkmuch(char *s)
 {
   enum { BIG=100*1024*1024 };
@@ -2619,6 +2626,8 @@ struct test {
   {iref, "iref"},
   {forktest, "forktest"},
   {sbrkbasic, "sbrkbasic"},
+  {sbrknothing, "sbrknothing"},
+  {sbrk8000, "sbrknothing"},
   {sbrkmuch, "sbrkmuch"},
   {kernmem, "kernmem"},
   {MAXVAplus, "MAXVAplus"},

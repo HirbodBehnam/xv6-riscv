@@ -261,10 +261,16 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("uvmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    pte = walk(pagetable, a, 0);
+    // Hirbod: This used to contain a panic.
+    // But because of lazy allocation, we just continue and ignore them.
+    // There used be another panic in which it checks if pte is equal to zero.
+    // This will happen if sbrk requests more than 2MB of memory and does not use the
+    // upper page at all. In this case, the last page table is non-existant
+    // and thus the result of walk will be zero!
+    // A simple program with sbrk(1024*1024*3) and then and exit will show it to you.
+    if((pte == 0) || (*pte & PTE_V) == 0)
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -330,6 +336,29 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     }
   }
   return newsz;
+}
+
+// Lazily allocate the page table for this address if applicable
+enum LazyAllocatorStatus
+uvmlazy(pagetable_t pagetable, uint64 addr)
+{
+  // Make everything less error prone
+  if (walkaddr(pagetable, addr) != 0)
+    panic("uvmlazy: lazily allocating an allocated page");
+  // TODO: Validate the address
+  // Get a page from kernel
+  void *allocated_mem = kalloc();
+  if (allocated_mem == 0) // OOM!
+    return LAZY_ALLOCATE_OOM;
+  memset(allocated_mem, 0, PGSIZE);
+  // Register this page
+  uint64 page_begin = PGROUNDDOWN(addr);
+  if (mappages(pagetable, page_begin, PGSIZE, (uint64)allocated_mem, PTE_W|PTE_R|PTE_U) != 0) {
+    kfree(allocated_mem);
+    printf("mappages OOM\n");
+    return LAZY_ALLOCATE_OOM;
+  }
+  return LAZY_ALLOCATE_OK;
 }
 
 // Deallocate user pages to bring the process size from oldsz to
