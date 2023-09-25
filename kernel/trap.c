@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+#define SCAUSE_PAGE_FAULT 15
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -65,6 +67,9 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == SCAUSE_PAGE_FAULT) {
+    printf("usertrap(): invalid memory access while accessing address %p\n", r_stval());
+    setkilled(p);
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

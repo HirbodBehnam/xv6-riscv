@@ -264,10 +264,13 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
-      return -1;
-    }
+    sz += n;
+    //panic("sbrk not implemented");
+    //if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
+    //  return -1;
+    //}
   } else if(n < 0){
+    panic("negative sbrk not implemented");
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
