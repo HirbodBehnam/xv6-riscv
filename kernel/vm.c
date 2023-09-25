@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -340,11 +342,15 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
 // Lazily allocate the page table for this address if applicable
 enum LazyAllocatorStatus
-uvmlazy(pagetable_t pagetable, uint64 addr)
+uvmlazy(pagetable_t pagetable, uint64 addr, int ignore_allocated)
 {
   // Make everything less error prone
-  if (walkaddr(pagetable, addr) != 0)
-    panic("uvmlazy: lazily allocating an allocated page");
+  if (walkaddr(pagetable, addr) != 0) {
+    if (ignore_allocated)
+      return LAZY_ALLOCATE_OK;
+    else
+      panic("uvmlazy: lazily allocating an allocated page");
+  }
   // TODO: Validate the address
   // Get a page from kernel
   void *allocated_mem = kalloc();
@@ -458,6 +464,26 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+// We are using lazy page allocation right?
+// What if we use a sbrk followed by a read syscall?
+// The kernel will consider the pages unallocated in copyout and thus
+// will fail the syscall.
+// Using this function, we can allocate those pages if they are located in heap.
+// Some bound checking should be done before it though.
+static void
+try_allocate_missing_pages(pagetable_t pagetable, uint64 dstva, uint64 len)
+{
+  uint64 end_address = dstva + len;
+  uint64 top_of_heap = myproc()->sz;
+  if (end_address >= top_of_heap) // Overflow. Will be caught later
+    return;
+  // Now we do something like uvmalloc
+  uint64 start = PGROUNDDOWN(dstva);
+  for (uint64 current_address = start; start < end_address; start += PGSIZE)
+    // TODO: check result
+    uvmlazy(pagetable, current_address + 1, 1);
+}
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -466,6 +492,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
 
+  try_allocate_missing_pages(pagetable, dstva, len);
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
@@ -491,6 +518,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   uint64 n, va0, pa0;
 
+  try_allocate_missing_pages(pagetable, srcva, len);
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
@@ -517,6 +545,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
   uint64 n, va0, pa0;
   int got_null = 0;
+  // Hirbod: fuck try_allocate_missing_pages. Probably has a wrong usage here
 
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);

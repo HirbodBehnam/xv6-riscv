@@ -2627,7 +2627,7 @@ struct test {
   {forktest, "forktest"},
   {sbrkbasic, "sbrkbasic"},
   {sbrknothing, "sbrknothing"},
-  {sbrk8000, "sbrknothing"},
+  {sbrk8000, "sbrk8000"},
   {sbrkmuch, "sbrkmuch"},
   {kernmem, "kernmem"},
   {MAXVAplus, "MAXVAplus"},

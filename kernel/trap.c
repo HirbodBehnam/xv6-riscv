@@ -69,7 +69,7 @@ usertrap(void)
     syscall();
   } else if (r_scause() == SCAUSE_PAGE_FAULT) {
     uint64 segfault_address = r_stval();
-    switch (uvmlazy(p->pagetable, segfault_address)) {
+    switch (uvmlazy(p->pagetable, segfault_address, 0)) {
       case LAZY_ALLOCATE_OK:
         //printf("Lazily allocated for access %p\n", segfault_address);
         break; // yay!
