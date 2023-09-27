@@ -169,6 +169,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->top_of_stack = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -265,12 +266,7 @@ growproc(int n)
   sz = p->sz;
   if(n > 0){
     sz += n;
-    //panic("sbrk not implemented");
-    //if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
-    //  return -1;
-    //}
   } else if(n < 0){
-    panic("negative sbrk not implemented");
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
@@ -298,6 +294,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->top_of_stack = p->top_of_stack;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);

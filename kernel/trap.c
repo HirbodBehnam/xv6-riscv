@@ -6,7 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
-#define SCAUSE_PAGE_FAULT 15
+#define SCAUSE_READ_PAGE_FAULT 13
+#define SCAUSE_WRITE_PAGE_FAULT 15
 
 struct spinlock tickslock;
 uint ticks;
@@ -67,14 +68,14 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if (r_scause() == SCAUSE_PAGE_FAULT) {
+  } else if (r_scause() == SCAUSE_READ_PAGE_FAULT || r_scause() == SCAUSE_WRITE_PAGE_FAULT) {
     uint64 segfault_address = r_stval();
     switch (uvmlazy(p->pagetable, segfault_address, 0)) {
       case LAZY_ALLOCATE_OK:
         //printf("Lazily allocated for access %p\n", segfault_address);
         break; // yay!
       case LAZY_ALLOCATE_OOM:
-        printf("OOM in PID %d\n", p->pid);
+        //printf("OOM in PID %d\n", p->pid);
         // Here, we have to act immediately and free the whole goddamn page table.
         // Because we literally have no more free pages it might cause the OS to crash.
         uvmunmap(p->pagetable, 0, PGROUNDUP(p->sz)/PGSIZE, 1);

@@ -344,6 +344,9 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 enum LazyAllocatorStatus
 uvmlazy(pagetable_t pagetable, uint64 addr, int ignore_allocated)
 {
+  // Validate the address
+  if (myproc()->sz <= addr || myproc()->top_of_stack > addr)
+    return LAZY_ALLOCATE_SEGFAULT;
   // Make everything less error prone
   if (walkaddr(pagetable, addr) != 0) {
     if (ignore_allocated)
@@ -351,7 +354,6 @@ uvmlazy(pagetable_t pagetable, uint64 addr, int ignore_allocated)
     else
       panic("uvmlazy: lazily allocating an allocated page");
   }
-  // TODO: Validate the address
   // Get a page from kernel
   void *allocated_mem = kalloc();
   if (allocated_mem == 0) // OOM!
@@ -430,10 +432,10 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+    pte = walk(old, i, 0);
+    // Read the explaination in uvmunmap
+    if((pte == 0) || (*pte & PTE_V) == 0)
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
