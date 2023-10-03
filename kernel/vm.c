@@ -462,8 +462,7 @@ int uvmtrycow(pagetable_t pagetable, uint64 addr) {
   
   // Is the CoW flag set?
   pte_t *pte = walk(pagetable, addr, 0);
-  uint64 flags = PTE_FLAGS(*pte);
-  if (!(flags & PTE_COW))
+  if (pte == 0 || (*pte & PTE_COW) == 0)
     return 1; // lol. no cow, just segfault
   
   // If we are here, this is a CoW!
@@ -476,7 +475,7 @@ int uvmtrycow(pagetable_t pagetable, uint64 addr) {
   memmove(new_page, (const void *)pa, PGSIZE);
   // Change the pte:
   // Change physical address, add W flag, remove CoW
-  *pte = (PA2PTE(new_page) | flags | PTE_W) & (~PTE_COW);
+  *pte = (PA2PTE(new_page) | PTE_FLAGS(*pte) | PTE_W) & (~PTE_COW);
   // Reduce the reference counter of the old physical page
   kfree((void *)pa);
   return 0;
