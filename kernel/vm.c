@@ -418,18 +418,17 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 }
 
 // Given a parent process's page table, copy
-// its memory into a child's page table.
-// Copies both the page table and the
-// physical memory.
+// its memory into a child's page table with cow.
+// Copies both the page table only and just creates a reference
+// to physical pages.
 // returns 0 on success, -1 on failure.
-// frees any allocated pages on failure.
-int
-uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+// Panics if on failure!
+void
+uvm_cow_copy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     pte = walk(old, i, 0);
@@ -437,20 +436,50 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((pte == 0) || (*pte & PTE_V) == 0)
       continue;
     pa = PTE2PA(*pte);
+    
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+    if (flags & PTE_W) { // if this is a writable page, ...
+      flags = (flags | PTE_COW) & (~PTE_W); // add the cow flag and remove the write flag to copied page table
+      *pte = (*pte | PTE_COW) & (~PTE_W); // add the cow flag and remove the write flag to initial page table
     }
-  }
-  return 0;
+    // TODO: should I copy otherwise?
 
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+    // Just increase the reference counter
+    krc_clone((void*) pa);
+    
+    // Map the physical address AGAIN
+    if(mappages(new, i, PGSIZE, pa, flags) != 0)
+      panic("uvm_cow_copy: mappages");
+  }
+}
+
+// Try to do a CoW on the address of a page table.
+// Returns 0 if the cow is done, otherwise 1.
+int uvmtrycow(pagetable_t pagetable, uint64 addr) {
+  // Validate the address
+  if (myproc()->sz <= addr)
+    return 1; // SEGFAULT
+  
+  // Is the CoW flag set?
+  pte_t *pte = walk(pagetable, addr, 0);
+  uint64 flags = PTE_FLAGS(*pte);
+  if (!(flags & PTE_COW))
+    return 1; // lol. no cow, just segfault
+  
+  // If we are here, this is a CoW!
+  // First, we allocate a page
+  void *new_page = kalloc();
+  if (new_page == 0)
+    panic("OOM in cow"); // TODO: what the fuck should I do?
+  // Now, copy the page into new page
+  uint64 pa = PTE2PA(*pte);
+  memmove(new_page, (const void *)pa, PGSIZE);
+  // Change the pte:
+  // Change physical address, add W flag, remove CoW
+  *pte = (PA2PTE(new_page) | flags | PTE_W) & (~PTE_COW);
+  // Reduce the reference counter of the old physical page
+  kfree((void *)pa);
+  return 0;
 }
 
 // mark a PTE invalid for user access.

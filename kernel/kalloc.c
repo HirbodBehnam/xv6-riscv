@@ -104,7 +104,7 @@ kfree(void *pa)
   if (page_ref_counter_index < 0 || page_ref_counter_index >= TOTAL_PAGES)
     panic("kfree out of range");
 
-  // TODO: can I do this with atomics?
+  // Note: Because we use one byte, we cant use atomics
   acquire(&kmem.lock);
   if (page_ref_counter[page_ref_counter_index] == 0)
     panic("kfree freed a free page");
@@ -129,7 +129,10 @@ kfree(void *pa)
 // Clones a physical address by increasing it's reference counter.
 // Might return another value if the reference counter overflows.
 // However, this is not implemented yet.
-void *
+// Hirbod's Note: XV6 can only run 64 simultaneous processes.
+// This means that the maximum reference counter value is 64 and
+// we can never overflow the max value. 
+void
 krc_clone(void *pa)
 {
   int page_ref_counter_index = PAGE_REF_INDEX(pa);
@@ -144,11 +147,10 @@ krc_clone(void *pa)
   if (page_ref_counter[page_ref_counter_index] >= MAX_PAGE_REFERENCES) // is this page has the maximum reference count?
     panic("krc_clone max references reached");
   
-  // Increase the reference count. TODO: atomic
+  // Note: Because we use one byte, we cant use atomics
   page_ref_counter[page_ref_counter_index]++;
 
   release(&kmem.lock);
-  return pa;
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -173,7 +175,7 @@ kalloc(void)
     page_ref_counter_index = PAGE_REF_INDEX(r);
     if (page_ref_counter_index < 0 || page_ref_counter_index >= TOTAL_PAGES)
       panic("kalloc out of range page");
-    // TODO: this can be done with compare and swap right?
+    // Note: Because we use one byte, we cant use atomics
     acquire(&kmem.lock);
     if (page_ref_counter[page_ref_counter_index] != 0)
       panic("kalloc allocated a non free page");
