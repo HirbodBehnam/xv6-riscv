@@ -32,6 +32,20 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+// This interrupt might have done something to the running program.
+// For example, this can put the status from sleeping to runnable
+// because this is an IO interrupt.
+// Or maybe the kill function makes kills the app and the scheduler must clean
+// up stuff from it.
+// So, we skip the next wfi. Note that this process's interrupt might have occurred while
+// another processes from the end of the queue is marked as ready.
+static void
+skip_all_wfi(void)
+{
+  for (int i = 0; i < NCPU; i++)
+    __atomic_store_4(&cpus[i].skip_wfi, 1, __ATOMIC_RELAXED);
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -50,14 +64,7 @@ usertrap(void)
 
   struct proc *p = myproc();
   
-  // This interrupt might have done something to the running program.
-  // For example, this can put the status from sleeping to runnable
-  // because this is an IO interrupt.
-  // Or maybe the kill function makes kills the app and the scheduler must clean
-  // up stuff from it.
-  // So, we skip the next wfi. Note that this process's interrupt might have occurred while
-  // another processes from the end of the queue is marked as ready.
-  __atomic_store_4(&mycpu()->skip_wfi, 1, __ATOMIC_RELAXED);
+  skip_all_wfi();
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
@@ -190,9 +197,7 @@ kerneltrap()
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
   } else {
-    // We skip the next wfi. Note that this process's interrupt might have occurred while
-    // another processes from the end of the queue is marked as ready.
-    __atomic_store_4(&mycpu()->skip_wfi, 1, __ATOMIC_RELAXED);
+    skip_all_wfi();
   }
 
   // give up the CPU if this is a timer interrupt.

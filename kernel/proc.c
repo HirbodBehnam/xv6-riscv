@@ -574,7 +574,6 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
-        // TODO: sched
       }
       release(&p->lock);
     }
@@ -596,7 +595,6 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
-        // TODO: sced
       }
       release(&p->lock);
       return 0;
