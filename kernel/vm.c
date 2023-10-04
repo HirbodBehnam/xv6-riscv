@@ -468,12 +468,18 @@ uvmtrycow(pagetable_t pagetable, uint64 addr)
     return ALLOCATE_SEGFAULT; // lol. no cow, just segfault
   
   // If we are here, this is a CoW!
-  // First, we allocate a page
+  // First, check if this is the last reference
+  uint64 pa = PTE2PA(*pte);
+  if (krc_count((void *) pa) == 1) {
+    // Last reference, just remove the COW flag
+    *pte = (*pte | PTE_W) & (~PTE_COW);
+    return ALLOCATE_OK;
+  }
+  // Now we allocate a page
   void *new_page = kalloc();
   if (new_page == 0)
     return ALLOCATE_OOM;
   // Now, copy the page into new page
-  uint64 pa = PTE2PA(*pte);
   memmove(new_page, (const void *)pa, PGSIZE);
   // Change the pte: change physical address, add W flag, remove CoW
   *pte = (PA2PTE(new_page) | PTE_FLAGS(*pte) | PTE_W) & (~PTE_COW);

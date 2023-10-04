@@ -67,6 +67,7 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
 void            krc_clone(void *);
+uint8           krc_count(void *pa);
 
 // log.c
 void            initlog(int, struct superblock*);

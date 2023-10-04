@@ -153,6 +153,16 @@ krc_clone(void *pa)
   release(&kmem.lock);
 }
 
+// Returns the number of references to a physical page
+uint8
+krc_count(void *pa)
+{
+  int page_ref_counter_index = PAGE_REF_INDEX(pa);
+  if (page_ref_counter_index < 0 || page_ref_counter_index >= TOTAL_PAGES)
+    panic("krc_count out of range");
+  
+  return page_ref_counter[page_ref_counter_index];
+}
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
