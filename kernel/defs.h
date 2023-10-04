@@ -165,7 +165,7 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
-enum            LazyAllocatorStatus {LAZY_ALLOCATE_OK, LAZY_ALLOCATE_SEGFAULT, LAZY_ALLOCATE_OOM};
+enum            MemoryAllocatationStatus {ALLOCATE_OK, ALLOCATE_SEGFAULT, ALLOCATE_OOM};
 void            kvminit(void);
 void            kvminithart(void);
 void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
@@ -176,11 +176,11 @@ void            uvmfirst(pagetable_t, uchar *, uint);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
 void            uvm_cow_copy(pagetable_t, pagetable_t, uint64);
-int             uvmtrycow(pagetable_t, uint64);
+enum MemoryAllocatationStatus uvmtrycow(pagetable_t, uint64);
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
-enum LazyAllocatorStatus uvmlazy(pagetable_t, uint64, int);
+enum MemoryAllocatationStatus uvmlazy(pagetable_t, uint64, int);
 pte_t *         walk(pagetable_t, uint64, int);
 uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);

@@ -341,32 +341,32 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 }
 
 // Lazily allocate the page table for this address if applicable
-enum LazyAllocatorStatus
+enum MemoryAllocatationStatus
 uvmlazy(pagetable_t pagetable, uint64 addr, int ignore_allocated)
 {
   // Validate the address
   if (myproc()->sz <= addr || myproc()->top_of_stack > addr)
-    return LAZY_ALLOCATE_SEGFAULT;
+    return ALLOCATE_SEGFAULT;
   // Make everything less error prone
   if (walkaddr(pagetable, addr) != 0) {
     if (ignore_allocated)
-      return LAZY_ALLOCATE_OK;
+      return ALLOCATE_OK;
     else
       panic("uvmlazy: lazily allocating an allocated page");
   }
   // Get a page from kernel
   void *allocated_mem = kalloc();
   if (allocated_mem == 0) // OOM!
-    return LAZY_ALLOCATE_OOM;
+    return ALLOCATE_OOM;
   memset(allocated_mem, 0, PGSIZE);
   // Register this page
   uint64 page_begin = PGROUNDDOWN(addr);
   if (mappages(pagetable, page_begin, PGSIZE, (uint64)allocated_mem, PTE_W|PTE_R|PTE_U) != 0) {
     kfree(allocated_mem);
     printf("mappages OOM\n");
-    return LAZY_ALLOCATE_OOM;
+    return ALLOCATE_OOM;
   }
-  return LAZY_ALLOCATE_OK;
+  return ALLOCATE_OK;
 }
 
 // Deallocate user pages to bring the process size from oldsz to
@@ -442,7 +442,7 @@ uvm_cow_copy(pagetable_t old, pagetable_t new, uint64 sz)
       flags = (flags | PTE_COW) & (~PTE_W); // add the cow flag and remove the write flag to copied page table
       *pte = (*pte | PTE_COW) & (~PTE_W); // add the cow flag and remove the write flag to initial page table
     }
-    // TODO: should I copy otherwise?
+    // No need to copy otherwise, these pages will have the same immulatble reference
 
     // Just increase the reference counter
     krc_clone((void*) pa);
@@ -455,30 +455,31 @@ uvm_cow_copy(pagetable_t old, pagetable_t new, uint64 sz)
 
 // Try to do a CoW on the address of a page table.
 // Returns 0 if the cow is done, otherwise 1.
-int uvmtrycow(pagetable_t pagetable, uint64 addr) {
+enum MemoryAllocatationStatus
+uvmtrycow(pagetable_t pagetable, uint64 addr)
+{
   // Validate the address
   if (myproc()->sz <= addr)
-    return 1; // SEGFAULT
+    return ALLOCATE_SEGFAULT; // SEGFAULT
   
   // Is the CoW flag set?
   pte_t *pte = walk(pagetable, addr, 0);
   if (pte == 0 || (*pte & PTE_COW) == 0)
-    return 1; // lol. no cow, just segfault
+    return ALLOCATE_SEGFAULT; // lol. no cow, just segfault
   
   // If we are here, this is a CoW!
   // First, we allocate a page
   void *new_page = kalloc();
   if (new_page == 0)
-    panic("OOM in cow"); // TODO: what the fuck should I do?
+    return ALLOCATE_OOM;
   // Now, copy the page into new page
   uint64 pa = PTE2PA(*pte);
   memmove(new_page, (const void *)pa, PGSIZE);
-  // Change the pte:
-  // Change physical address, add W flag, remove CoW
+  // Change the pte: change physical address, add W flag, remove CoW
   *pte = (PA2PTE(new_page) | PTE_FLAGS(*pte) | PTE_W) & (~PTE_COW);
   // Reduce the reference counter of the old physical page
   kfree((void *)pa);
-  return 0;
+  return ALLOCATE_OK;
 }
 
 // mark a PTE invalid for user access.

@@ -70,37 +70,32 @@ usertrap(void)
     syscall();
   } else if (r_scause() == SCAUSE_READ_PAGE_FAULT || r_scause() == SCAUSE_WRITE_PAGE_FAULT) {
     uint64 segfault_address = r_stval();
-    do {
       // Check for CoW
       if (r_scause() == SCAUSE_WRITE_PAGE_FAULT) {
-        if (uvmtrycow(p->pagetable, segfault_address) == 0) {
-          // We did a Cow!
-          //printf("CoW on %p\n", segfault_address);
-          break;
+        switch (uvmtrycow(p->pagetable, segfault_address)) {
+          case ALLOCATE_OK:
+            goto MEMORY_ALLOCATE_DONE;
+          case ALLOCATE_OOM:
+            setkilled(p);
+            goto MEMORY_ALLOCATE_DONE;
+          default: // something else. We will check the lazy allocator
+            break;
         }
       }
 
       // Check for lazy allocation
       switch (uvmlazy(p->pagetable, segfault_address, 0)) {
-        case LAZY_ALLOCATE_OK:
-          //printf("Lazily allocated for access %p\n", segfault_address);
+        case ALLOCATE_OK:
           break; // yay!
-        case LAZY_ALLOCATE_OOM:
-          //printf("OOM in PID %d\n", p->pid);
-          // Here, we have to act immediately and free the whole goddamn page table.
-          // Because we literally have no more free pages it might cause the OS to crash.
-          uvmunmap(p->pagetable, 0, PGROUNDUP(p->sz)/PGSIZE, 1);
-          p->sz = 0; // we freed it
-          //printf("OOM cleanup done\n");
-          // Kill the process
+        case ALLOCATE_OOM:
           setkilled(p);
           break;
-        case LAZY_ALLOCATE_SEGFAULT:
+        case ALLOCATE_SEGFAULT:
           printf("usertrap(): SEGFAULT on address %p\n", segfault_address);
           setkilled(p);
           break;
       }
-    } while(0);
+    MEMORY_ALLOCATE_DONE:
     sfence_vma(); // flush all tlb entries. We might have done something to them...
   } else if((which_dev = devintr()) != 0){
     // ok
