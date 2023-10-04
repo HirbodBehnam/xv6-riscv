@@ -447,10 +447,12 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
+    __atomic_store_4(&c->skip_wfi, 0, __ATOMIC_RELAXED);
 
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        __atomic_store_4(&c->skip_wfi, 1, __ATOMIC_RELAXED);
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
@@ -464,6 +466,9 @@ scheduler(void)
       }
       release(&p->lock);
     }
+
+    if (!__atomic_load_4(&c->skip_wfi, __ATOMIC_RELAXED))
+      wfi();
   }
 }
 
@@ -569,6 +574,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        // TODO: sched
       }
       release(&p->lock);
     }
@@ -590,6 +596,7 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
+        // TODO: sced
       }
       release(&p->lock);
       return 0;

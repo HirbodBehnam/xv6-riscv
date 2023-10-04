@@ -50,6 +50,15 @@ usertrap(void)
 
   struct proc *p = myproc();
   
+  // This interrupt might have done something to the running program.
+  // For example, this can put the status from sleeping to runnable
+  // because this is an IO interrupt.
+  // Or maybe the kill function makes kills the app and the scheduler must clean
+  // up stuff from it.
+  // So, we skip the next wfi. Note that this process's interrupt might have occurred while
+  // another processes from the end of the queue is marked as ready.
+  __atomic_store_4(&mycpu()->skip_wfi, 1, __ATOMIC_RELAXED);
+  
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
@@ -180,6 +189,10 @@ kerneltrap()
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
+  } else {
+    // We skip the next wfi. Note that this process's interrupt might have occurred while
+    // another processes from the end of the queue is marked as ready.
+    __atomic_store_4(&mycpu()->skip_wfi, 1, __ATOMIC_RELAXED);
   }
 
   // give up the CPU if this is a timer interrupt.
