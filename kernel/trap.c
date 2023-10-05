@@ -42,8 +42,14 @@ trapinithart(void)
 static void
 skip_all_wfi(void)
 {
-  for (int i = 0; i < NCPU; i++)
-    __atomic_store_4(&cpus[i].skip_wfi, 1, __ATOMIC_RELAXED);
+  int current_cpu = cpuid();
+  __atomic_store_4(&cpus[current_cpu].skip_wfi, 1, __ATOMIC_RELAXED);
+  for (int i = 0; i < NCPU; i++) {
+    if (i == current_cpu)
+      continue;
+    // Send an IPI to that hart
+    *((volatile uint32 *) ACLINT_SETSSIP(i)) = 1;
+  }
 }
 
 //
@@ -64,8 +70,6 @@ usertrap(void)
 
   struct proc *p = myproc();
   
-  skip_all_wfi();
-  
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
@@ -78,6 +82,10 @@ usertrap(void)
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
+
+    // ‌Before turning on the interrupts just make sure that no other
+    // schedulers are sleeping in wfi
+    skip_all_wfi();
 
     // an interrupt will change sepc, scause, and sstatus,
     // so enable only now that we're done with those registers.
@@ -196,8 +204,6 @@ kerneltrap()
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
-  } else {
-    skip_all_wfi();
   }
 
   // give up the CPU if this is a timer interrupt.
@@ -250,6 +256,8 @@ devintr()
     if(irq)
       plic_complete(irq);
 
+    // Let the other threads know that they might be able to surve an app
+    skip_all_wfi();
     return 1;
   } else if(scause == 0x8000000000000001L){
     // software interrupt from a machine-mode timer interrupt,

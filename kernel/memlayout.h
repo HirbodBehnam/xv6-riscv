@@ -37,6 +37,11 @@ extern long long uart0_log;
 #define CLINT 0x2000000L
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
 #define CLINT_MTIME (CLINT + 0xBFF8) // cycles since boot.
+// See these links:
+// https://github.com/riscv/riscv-aclint/blob/main/riscv-aclint.adoc#41-register-map
+// https://github.com/qemu/qemu/blob/44f28df24767cf9dca1ddc9b23157737c4cbb645/hw/riscv/virt.c
+#define ACLINT_SSWI 0x2F00000L
+#define ACLINT_SETSSIP(hartid) (ACLINT_SSWI + 4*(hartid))
 
 // qemu puts platform-level interrupt controller (PLIC) here.
 #define PLIC 0x0c000000L
