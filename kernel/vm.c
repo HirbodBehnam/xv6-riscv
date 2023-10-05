@@ -26,6 +26,9 @@ kvmmake(void)
   kpgtbl = (pagetable_t) kalloc();
   memset(kpgtbl, 0, PGSIZE);
 
+  // QEMU test interface used for power management
+  kvmmap(kpgtbl, QEMU_POWER, QEMU_POWER, PGSIZE, PTE_R | PTE_W);
+
   // uart registers
   uart0_log = 0x20000000L;
   kvmmap(kpgtbl, uart0_log, UART0_PHY, PGSIZE, PTE_R | PTE_W);

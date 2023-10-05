@@ -24,3 +24,4 @@
 #define SYS_mem_free 23
 #define SYS_time     24
 #define SYS_rng_read 25
+#define SYS_poweroff 26

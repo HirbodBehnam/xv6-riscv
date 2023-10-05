@@ -8,11 +8,22 @@
 #include "defs.h"
 
 // Sums two numbers together as a syscall
-static uint64 sys_add(void) {
+static uint64
+sys_add(void)
+{
   int a, b;
   argint(0, &a);
   argint(1, &b);
   return a + b;
+}
+
+// Power off QEMU
+static uint64
+sys_poweroff(void)
+{
+  printf("Powering off...\n");
+  (*(volatile uint32 *) 0x100000) = 0x5555;
+  panic("sys_poweroff");
 }
 
 // Fetch the uint64 at addr from the current process.
@@ -141,6 +152,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mem_free] sys_mem_free,
 [SYS_time]     sys_time,
 [SYS_rng_read] sys_rng_read,
+[SYS_poweroff] sys_poweroff,
 };
 
 void
